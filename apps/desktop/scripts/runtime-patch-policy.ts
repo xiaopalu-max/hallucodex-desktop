@@ -1,0 +1,30 @@
+/** Desktop-specific selection of workspace and runtime-only dependency patches. */
+
+/** A patch shared with the workspace, excluded from runtime installation, or supplied only to Desktop. */
+export type DesktopRuntimePatch =
+  | { scope: 'shared'; reason: string }
+  | { scope: 'workspace-only'; reason: string }
+  | { scope: 'runtime-only'; path: string; reason: string }
+
+/** Every workspace patch requires an explicit Desktop decision; runtime-only entries may add or replace a patch. */
+export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatch>> = {
+  '@earendil-works/pi-ai@1.6.0': { scope: 'shared', reason: 'Runtime reasoning and tool-call history depend on the pi catalog and compatibility patch.' },
+  '@botiverse/oar@0.67.0': { scope: 'workspace-only', reason: 'Patched OAR adapters are embedded in the provider bundle.' },
+  'lexical@0.49.0': { scope: 'workspace-only', reason: 'Patched editor code is embedded in the client bundle.' },
+  'mdast-util-gfm-autolink-literal@2.0.1': { scope: 'workspace-only', reason: 'Patched Markdown code is embedded in the client bundle.' },
+  'micromark-extension-gfm-autolink-literal@2.1.0': { scope: 'workspace-only', reason: 'Patched Markdown code is embedded in the client bundle.' },
+  '@electron/osx-sign@1.3.3': { scope: 'workspace-only', reason: 'Signing executes on the build host.' },
+  '@fortune-sheet/core@1.0.4': { scope: 'workspace-only', reason: 'Patched spreadsheet code is embedded in the client bundle.' },
+  '@fortune-sheet/react@1.0.4': { scope: 'workspace-only', reason: 'Patched spreadsheet code is embedded in the client bundle.' },
+  '@yao-pkg/pkg@6.21.0': { scope: 'workspace-only', reason: 'The executable packer executes on the build host.' },
+  'app-builder-lib@26.17.0': { scope: 'workspace-only', reason: 'DMG format validation executes on the build host.' },
+  'exceljs@4.4.0': { scope: 'workspace-only', reason: 'The patched parser is embedded in the client bundle and worker.' },
+  'node-pty@1.2.0-beta.15': { scope: 'shared', reason: 'Runtime terminals need helper resolution and Windows worker cleanup.' },
+}
+
+/** Reviewed Desktop dependency constraints, independent of patch selection. */
+export const DESKTOP_RUNTIME_DEPENDENCY_OVERRIDES: Readonly<Record<string, string>> = {
+  '@earendil-works/pi-ai@^1.6.0': '1.6.0',
+  // The workspace's packageExtensions links the WebAssembly build that Linux loads to sharp 0.35.5 only.
+  'sharp@^0.35.5': '0.35.5',
+}

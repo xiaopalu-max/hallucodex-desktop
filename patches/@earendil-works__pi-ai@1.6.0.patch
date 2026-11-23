@@ -1,0 +1,104 @@
+diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
+index 5b9ef8eb316345a5af018d6d65d69a97b814b23c..ea0629671ecef819c7bc9ae1a662c8d59c15f250 100644
+--- a/dist/api/anthropic-messages.js
++++ b/dist/api/anthropic-messages.js
+@@ -771,7 +771,7 @@ export const stream = (model, context, options) => {
+                     }
+                     else if (event.delta.type === "input_json_delta") {
+                         if (open?.block.type === "toolCall" && open.arguments !== undefined) {
+-                            open.block.arguments = open.arguments.append(event.delta.partial_json);
++                            open.arguments.append(event.delta.partial_json);
+                             stream.push({
+                                 type: "toolcall_delta",
+                                 contentIndex: open.contentIndex,
+diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
+index 2f4d57c12f029a46a731e6c26a1212300ae00019..1ed71114f562bf881f18ae68b8ca32c173902ced 100644
+--- a/dist/api/bedrock-converse-stream.js
++++ b/dist/api/bedrock-converse-stream.js
+@@ -494,7 +494,7 @@ function handleContentBlockDelta(event, openBlocks, output, stream) {
+         }
+     }
+     else if (delta?.toolUse && block?.type === "toolCall" && open?.arguments !== undefined) {
+-        block.arguments = open.arguments.append(delta.toolUse.input || "");
++        open.arguments.append(delta.toolUse.input || "");
+         stream.push({
+             type: "toolcall_delta",
+             contentIndex: open.contentIndex,
+diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
+index 12e9f1e4a742e3389ddd6ba16959acc9685f0f76..5cc25401c50333a91850f97ecee6143e9c549312 100644
+--- a/dist/api/mistral-conversations.js
++++ b/dist/api/mistral-conversations.js
+@@ -550,7 +550,7 @@ async function consumeChatStream(model, output, stream, mistralStream, onProvide
+             const argsDelta = typeof toolCall.function.arguments === "string"
+                 ? toolCall.function.arguments
+                 : JSON.stringify(toolCall.function.arguments || {});
+-            output.content[open.contentIndex].arguments = open.arguments.append(argsDelta);
++            open.arguments.append(argsDelta);
+             stream.push({
+                 type: "toolcall_delta",
+                 contentIndex: open.contentIndex,
+diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
+index 7ba85d53d8dffaef8bc761eca0ad3000037704fa..d9cf8fd1071084bc922d06cb45a1ffb3b3b6360b 100644
+--- a/dist/api/openai-completions.js
++++ b/dist/api/openai-completions.js
+@@ -435,11 +435,15 @@ export const stream = (model, context, options) => {
+                             if (!block.name && name) {
+                                 block.name = name;
+                             }
++                            const geminiThoughtSignature = toolCall.extra_content?.google?.thought_signature;
++                            if (typeof geminiThoughtSignature === "string" && geminiThoughtSignature.length > 0) {
++                                block.thoughtSignature = geminiThoughtSignature;
++                            }
+                             let delta = "";
+                             const input = state.input;
+                             if (toolCall.function?.arguments && input.kind === "json") {
+                                 delta = toolCall.function.arguments;
+-                                block.arguments = input.arguments.append(delta);
++                                input.arguments.append(delta);
+                             }
+                             else if (toolCall.custom?.input && input.kind === "custom") {
+                                 delta =
+@@ -1024,6 +1028,9 @@ export function convertMessages(model, context, compat, options) {
+                             },
+                         };
+                     }
++                    const geminiThoughtSignature = tc.thoughtSignature && !parseLegacyEncryptedReasoningDetail(tc.thoughtSignature)
++                        ? tc.thoughtSignature
++                        : undefined;
+                     return {
+                         id: tc.id,
+                         type: "function",
+@@ -1031,6 +1038,7 @@ export function convertMessages(model, context, compat, options) {
+                             name: tc.name,
+                             arguments: JSON.stringify(tc.arguments),
+                         },
++                        ...(geminiThoughtSignature && { extra_content: { google: { thought_signature: geminiThoughtSignature } } }),
+                     };
+                 });
+             }
+diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
+index b7016e398acac3560ce58cc6cbb46e2cdfcae2a6..a5589ada8f8471e8d22bb6349395ceb65db0e80d 100644
+--- a/dist/api/openai-responses-shared.js
++++ b/dist/api/openai-responses-shared.js
+@@ -598,7 +598,7 @@ export async function processResponsesStream(openaiStream, output, stream, model
+             const slot = getSlot(event.output_index, "toolCall");
+             if (slot?.input.kind !== "json")
+                 continue;
+-            slot.block.arguments = slot.input.arguments.append(event.delta);
++            slot.input.arguments.append(event.delta);
+             pushToolCallDelta(slot, event.delta);
+         }
+         else if (event.type === "response.function_call_arguments.done") {
+diff --git a/dist/api/pi-messages.js b/dist/api/pi-messages.js
+index d6638a8d7a79a6f262b6a5da9cd6e15a51077fb6..a906a23c8809673cb56fcada697f69e71464d1f2 100644
+--- a/dist/api/pi-messages.js
++++ b/dist/api/pi-messages.js
+@@ -172,7 +172,7 @@ function createEventConverter(model) {
+             case "toolcall_delta": {
+                 const args = toolArguments.get(event.contentIndex);
+                 if (args !== undefined)
+-                    partial.content[event.contentIndex].arguments = args.append(event.delta);
++                    args.append(event.delta);
+                 break;
+             }
+             case "toolcall_end":

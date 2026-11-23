@@ -1,0 +1,106 @@
+import type { AfterPackContext, BeforePackContext } from 'app-builder-lib'
+
+/** Electron-builder fields asserted by the Desktop release tests. */
+export interface DesktopElectronBuilderConfig {
+  readonly appId: string
+  readonly artifactName: string
+  readonly productName: string
+  readonly protocols: readonly { readonly name: string; readonly schemes: readonly string[] }[]
+  readonly directories: {
+    readonly output: string
+  }
+  readonly files: readonly [
+    ...string[],
+    { readonly from: string, readonly to: 'dsh', readonly filter: readonly ['**/*'] },
+    { readonly from: string, readonly to: 'dsh/node_modules', readonly filter: readonly ['**/*'] },
+  ]
+  readonly extraMetadata: {
+    readonly dshDesktopAppId: string
+    readonly dshDevelopmentArtifact?: boolean
+    readonly name: string
+    readonly desktopName?: string
+    readonly homepage?: string
+    readonly version?: string
+    readonly hallucodexUpdateMode?: 'install'
+  }
+  readonly asarUnpack: readonly string[]
+  readonly extraResources: readonly [
+    { readonly from: string, readonly to: 'runtime' },
+    { readonly from: string, readonly to: 'icon.png' },
+    ...{ readonly from: string, readonly to: 'tray.ico' | 'tray.png' }[],
+  ]
+  readonly mac: {
+    readonly extendInfo: { readonly CFBundleLocalizations: readonly string[]; readonly NSMicrophoneUsageDescription: string }
+    readonly entitlements: string
+    readonly entitlementsInherit: string
+    readonly identity: string | null | undefined
+    readonly forceCodeSigning: boolean
+    readonly hardenedRuntime: boolean
+    readonly notarize: boolean
+    readonly target: readonly ['dmg', 'zip']
+    readonly signIgnore: readonly string[]
+  }
+  readonly dmg: {
+    readonly format: 'ULMO'
+    readonly sign: boolean
+    readonly writeUpdateInfo: boolean
+  }
+  readonly win: {
+    readonly forceCodeSigning: boolean
+    readonly signtoolOptions: {
+      readonly publisherName: string | undefined
+      readonly sign: ((configuration: { path: string, hash: string, isNest: boolean }) => Promise<void>) | undefined
+      readonly signingHashAlgorithms: readonly string[]
+    }
+  }
+  readonly linux: {
+    readonly executableName: string
+    readonly icon: string
+    readonly synopsis: string
+    readonly maintainer: string | undefined
+    readonly target: readonly string[]
+    readonly executableArgs: readonly string[]
+    readonly desktop: { readonly entry: { readonly Name: string; readonly StartupWMClass: string } }
+  }
+  readonly appImage: { readonly executableArgs: readonly string[] }
+  readonly deb: { readonly packageName: string; readonly executableArgs: readonly string[] }
+  readonly nsis: {
+    readonly include: string
+    readonly oneClick: false
+    readonly perMachine: false
+    readonly allowElevation: false
+    readonly allowToChangeInstallationDirectory: false
+    readonly installerLanguages: readonly ['en_US', 'zh_CN']
+  }
+  readonly beforeBuild: () => Promise<boolean>
+  readonly beforePack: (context: BeforePackContext) => Promise<void>
+  readonly afterPack: (context: AfterPackContext) => Promise<void>
+  readonly afterSign: (context: AfterPackContext) => Promise<void>
+  readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
+  readonly detectUpdateChannel: false
+  readonly publish: readonly [{
+    readonly provider: 'github'
+    readonly owner: 'AkumaRealLabs'
+    readonly repo: 'hallucodex-desktop'
+    readonly releaseType: 'release'
+  }] | null
+}
+
+/**
+ * Create electron-builder configuration from one release environment.
+ * @param env - Packaging environment.
+ * @param hostPlatform - Build-host platform used when no explicit target is present.
+ * @param hostArch - Build-host architecture used when no explicit target is present.
+ * @param preparedRuntime - Prepared dsh tree packaged instead of the target's own; it must declare the product version.
+ * @returns electron-builder configuration.
+ */
+export function createElectronBuilderConfig(
+  env?: NodeJS.ProcessEnv,
+  hostPlatform?: NodeJS.Platform,
+  hostArch?: string,
+  preparedRuntime?: string,
+): DesktopElectronBuilderConfig
+
+declare const electronBuilderConfig: DesktopElectronBuilderConfig
+
+export default electronBuilderConfig
