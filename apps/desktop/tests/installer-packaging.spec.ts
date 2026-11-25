@@ -70,6 +70,16 @@ describe('installer preparation preserves application dependencies', () => {
     }
   })
 
+  it('includes the PowerShell files embedded by the Windows uninstaller', () => {
+    const installer = readFileSync(new URL('../installer/uninstall.nsh', import.meta.url), 'utf8')
+    const sources = [...installer.matchAll(/^\s*File \/oname=.* "\$\{__FILEDIR__\}\\\.\.\\scripts\\([^"\\]+\.ps1)"$/gmu)]
+      .map(match => match[1])
+    expect(sources).toEqual(expect.arrayContaining(['command-path.ps1', 'uninstall-registration.ps1']))
+    for (const file of sources) {
+      expect(readFileSync(new URL(`../scripts/${file}`, import.meta.url), 'utf8')).not.toBe('')
+    }
+  })
+
   it('prints Windows linker output and rejects installer preparation on failure', async () => {
     const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
     const config = createElectronBuilderConfig({ DSH_DESKTOP_APP_ID: 'com.example.installer', DSH_DESKTOP_UNSIGNED: '1' }, 'win32', 'x64')
