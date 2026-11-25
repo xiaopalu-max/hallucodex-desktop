@@ -32,6 +32,17 @@ it.each(['allowOnlyOneInstallerInstance.nsh', 'installUtil.nsh'])('cleans staged
   expect(adapted).toContain('!ifndef BUILD_UNINSTALLER')
 })
 
+it('defines every uninstall UI string for the released English and Chinese languages', () => {
+  const uninstall = readFileSync(new URL('../installer/uninstall.nsh', import.meta.url), 'utf8')
+  const strings = readFileSync(new URL('../installer/strings.nsh', import.meta.url), 'utf8')
+  const keys = [...new Set([...uninstall.matchAll(/\$\((INSTALLER_UNINSTALL_[A-Z_]+)\)/gu)].map(match => match[1]))]
+  expect(keys.length).toBeGreaterThan(0)
+  for (const key of keys) {
+    expect(strings).toContain(`LangString ${key} \${LANG_ENGLISH} `)
+    expect(strings).toContain(`LangString ${key} \${LANG_SIMPCHINESE} `)
+  }
+})
+
 it('stages before stopping the application and promotes before registering the installation', () => {
   const result = directoryInstallSection(section)
   expect(result.indexOf('!insertmacro dshStageApplication')).toBeLessThan(result.indexOf('!insertmacro CHECK_APP_RUNNING'))
