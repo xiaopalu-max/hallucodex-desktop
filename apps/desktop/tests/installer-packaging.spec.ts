@@ -70,6 +70,21 @@ describe('installer preparation preserves application dependencies', () => {
     }
   })
 
+  it('prints Windows linker output and rejects installer preparation on failure', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const config = createElectronBuilderConfig({ DSH_DESKTOP_APP_ID: 'com.example.installer', DSH_DESKTOP_UNSIGNED: '1' }, 'win32', 'x64')
+    const stdout = 'window-frame.obj : error LNK2019\n'
+    const failure = Object.assign(new Error('Native installer helper compilation failed.'), { stdout })
+    execute.mockRejectedValueOnce(failure)
+    const diagnostic = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    try {
+      await expect(config.beforeBuild()).rejects.toBe(failure)
+      expect(diagnostic).toHaveBeenCalledWith(stdout)
+    } finally {
+      diagnostic.mockRestore()
+    }
+  })
+
   it('installs the Linux icon at every hicolor size and describes the deb package', async () => {
     const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
     const config = createElectronBuilderConfig({ DSH_DESKTOP_APP_ID: 'com.example.installer', DSH_DESKTOP_TARGET_PLATFORM: 'linux',

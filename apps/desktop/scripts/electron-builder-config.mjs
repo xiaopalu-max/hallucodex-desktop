@@ -124,6 +124,10 @@ export function createElectronBuilderConfig(
         fileURLToPath(new URL('./prepare-windows-installer.ps1', import.meta.url)),
         '-OutputDirectory', join(buildPaths.root, 'installer-ui')], {
         env: scrubWindowsSigningEnvironment(env), windowsHide: true,
+      }).catch(error => {
+        // MSVC reports linker diagnostics on stdout. Electron-builder prints the error but not that stream.
+        if (typeof error?.stdout === 'string' && error.stdout !== '') process.stderr.write(error.stdout)
+        throw error
       })
       if (windowsSigner !== undefined) {
         await windowsSigner({ path: join(buildPaths.root, 'installer-ui', 'window-frame.dll'), hash: 'sha256', isNest: false })
