@@ -254,7 +254,9 @@ Windows 安装器在启动时和选定目标目录后检查应用是否正在运
 
 ### 发布工作流
 
-推送 `hallucodex-v<版本>` 标签，或以已有标签手动运行[发布工作流](../../.github/workflows/hallucodex-desktop-release.yml)，会为本仓库发布一个 GitHub Release：
+只打包、不发布时，打开 **Actions → HalluCodex desktop release → Run workflow**，选择要构建的分支，在 `build_version` 填写安装包版本（例如 `0.1.11`），留空 `tag`。构建完成后，在运行记录的 **Artifacts** 区域下载安装包。此模式不要求更新日志条目，也不会创建标签或发行版。
+
+推送 `hallucodex-v<版本>` 标签，或手动运行[发布工作流](../../.github/workflows/hallucodex-desktop-release.yml)时填写已有的 `tag` 并留空 `build_version`，会为本仓库发布一个 GitHub Release：
 
 1. 在仓库根目录的 [CHANGELOG.md](../../CHANGELOG.md) 中添加 `## <版本>` 小节并在打标签前合并。标签不是 `hallucodex-v<SemVer>` 或缺少该小节时，工作流在构建前停止。
 2. 推送标签，例如 `git tag hallucodex-v0.1.0 && git push origin hallucodex-v0.1.0`。

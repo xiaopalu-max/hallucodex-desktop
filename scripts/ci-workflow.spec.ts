@@ -1182,20 +1182,43 @@ describe('HalluCodex desktop release workflow', () => {
   }
   const runs = (name: string): string => steps(name).map(step => typeof step.run === 'string' ? step.run : '').join('\n')
 
-  it('runs only for hallucodex-v tags or a manual tag, never for upstream dsh-v tags', () => {
+  it('accepts a manual build version or release tag, and only triggers automatically for HalluCodex tags', () => {
     expect(Object.keys(workflow.on as Record<string, unknown>)).toEqual(['push', 'workflow_dispatch'])
     expect(workflow.on).toMatchObject({
       push: { tags: ['hallucodex-v*'] },
-      workflow_dispatch: { inputs: { tag: { required: true, type: 'string' } } },
+      workflow_dispatch: { inputs: {
+        build_version: { required: false, type: 'string' },
+        tag: { required: false, type: 'string' },
+      } },
     })
     expect(JSON.stringify(workflow.on)).not.toContain('dsh-v')
     expect(Object.keys(workflow.jobs as Record<string, unknown>)).toEqual(['prepare', 'package', 'release'])
   })
 
   it('validates the tag and changelog section before building', () => {
-    expect(runs('prepare')).toContain('desktop-release-notes.mjs version "$TAG"')
-    expect(runs('prepare')).toContain('--changelog CHANGELOG.md')
+    const prepare = runs('prepare')
+    expect(prepare).toContain('desktop-release-notes.mjs version "${TAG:-hallucodex-v$BUILD_VERSION}"')
+    expect(prepare).toContain('if [ -n "$TAG" ]; then')
+    expect(prepare).toContain('--changelog CHANGELOG.md')
     expect(workflowJob(workflow, 'package').needs).toBe('prepare')
+  })
+
+  it('builds the dispatched commit without a tag and skips publication', () => {
+    expect(runs('prepare')).toContain('if [ -n "$BUILD_VERSION" ] && [ -z "$INPUT_TAG" ]; then\n    echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"\n    exit 0')
+    expect(runs('prepare')).toContain('if [ -n "$BUILD_VERSION" ] || [ -z "$INPUT_TAG" ]; then')
+    expect(workflowJob(workflow, 'prepare').outputs).toMatchObject({
+      ref: '${{ steps.source.outputs.ref }}',
+      tag: '${{ steps.version.outputs.tag }}',
+    })
+    expect(steps('package')).toContainEqual(expect.objectContaining({
+      uses: 'actions/checkout@v6',
+      with: expect.objectContaining({ ref: '${{ needs.prepare.outputs.ref }}' }),
+    }))
+    expect(steps('package')).toContainEqual(expect.objectContaining({
+      uses: 'actions/upload-artifact@v7',
+      with: expect.objectContaining({ name: 'hallucodex-desktop-${{ matrix.target }}' }),
+    }))
+    expect(workflowJob(workflow, 'release').if).toBe("${{ needs.prepare.outputs.tag != '' }}")
   })
 
   it('packages unsigned installers on hosted runners for every desktop target with the tag version', () => {

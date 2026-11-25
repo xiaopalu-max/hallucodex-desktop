@@ -1,28 +1,29 @@
 name: HalluCodex desktop release
 
 # Builds the HalluCodex desktop installers for one hallucodex-v<semver> tag and
-# publishes them, with their update metadata and SHA256SUMS, as that tag's
-# GitHub Release. The version without the prefix becomes the installer and
-# application version; a version containing "-" is published as a prerelease.
-# Upstream dsh-v* tags do not match the trigger. Packaging never publishes by
-# itself (electron-builder always runs with --publish never); only the final
-# job writes to the repository.
+# publishes them with verified update metadata and checksums. A manual build
+# version packages the selected revision without a tag or a GitHub Release.
+# Only the release job writes to the repository.
 on:
   push:
     tags:
       - 'hallucodex-v*'
   workflow_dispatch:
     inputs:
+      build_version:
+        description: 'Build only: installer version (e.g. 0.1.11). Leave tag blank.'
+        required: false
+        type: string
       tag:
-        description: Existing hallucodex-v<semver> tag to build and release, such as hallucodex-v0.1.0.
-        required: true
+        description: 'Publish: existing hallucodex-v<version> tag. Leave build_version blank.'
+        required: false
         type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: hallucodex-desktop-release-${{ inputs.tag || github.ref_name }}
+  group: hallucodex-desktop-release-${{ inputs.build_version && github.run_id || inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -31,30 +32,45 @@ env:
 
 jobs:
   prepare:
-    name: Validate tag and changelog
+    name: Validate build version or release tag
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      tag: ${{ steps.release.outputs.tag }}
-      version: ${{ steps.release.outputs.version }}
-      prerelease: ${{ steps.release.outputs.prerelease }}
+      ref: ${{ steps.source.outputs.ref }}
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - name: Select the release tag
-        id: tag
+      - name: Select source revision
+        id: source
         env:
           INPUT_TAG: ${{ inputs.tag }}
+          BUILD_VERSION: ${{ inputs.build_version }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then tag="$INPUT_TAG"; else tag="$GITHUB_REF_NAME"; fi
-          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" != tag ]; then
-            echo "::error::Releases run only from a pushed hallucodex-v* tag."; exit 1
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if [ -n "$BUILD_VERSION" ] && [ -z "$INPUT_TAG" ]; then
+              echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ -n "$BUILD_VERSION" ] || [ -z "$INPUT_TAG" ]; then
+              echo '::error::Fill in exactly one of build_version (build only) or tag (publish).'; exit 1
+            fi
+            tag="$INPUT_TAG"
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            echo '::error::Automatic releases require a pushed hallucodex-v* tag.'; exit 1
           fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [[ ! "$tag" =~ ^hallucodex-v[0-9][a-zA-Z0-9.-]*$ ]]; then
+            echo '::error::Use an existing hallucodex-v<version> tag.'; exit 1
+          fi
+          printf 'tag=%s\nref=refs/tags/%s\n' "$tag" "$tag" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          ref: ${{ steps.source.outputs.ref }}
           persist-credentials: false
 
       - uses: actions/setup-node@v6
@@ -62,21 +78,22 @@ jobs:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
           package-manager-cache: false
 
-      # Fails before any installer is built when the tag is not hallucodex-v<semver>
-      # or CHANGELOG.md has no "## <version>" section.
-      - name: Read the version and check its changelog section
-        id: release
+      - name: Validate installer version
+        id: version
         env:
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ steps.source.outputs.tag }}
+          BUILD_VERSION: ${{ inputs.build_version }}
         shell: bash
         run: |
           set -euo pipefail
-          release="$(node apps/desktop/scripts/desktop-release-notes.mjs version "$TAG")"
-          printf 'tag=%s\n%s\n' "$TAG" "$release" >> "$GITHUB_OUTPUT"
-          version="$(printf '%s\n' "$release" | sed -n 's/^version=//p')"
-          node apps/desktop/scripts/desktop-release-notes.mjs notes --version "$version" \
-            --changelog CHANGELOG.md --output "$RUNNER_TEMP/release-notes.md"
-          cat "$RUNNER_TEMP/release-notes.md" >> "$GITHUB_STEP_SUMMARY"
+          version_info="$(node apps/desktop/scripts/desktop-release-notes.mjs version "${TAG:-hallucodex-v$BUILD_VERSION}")"
+          printf 'tag=%s\n%s\n' "$TAG" "$version_info" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG" ]; then
+            version="$(printf '%s\n' "$version_info" | sed -n 's/^version=//p')"
+            node apps/desktop/scripts/desktop-release-notes.mjs notes --version "$version" \
+              --changelog CHANGELOG.md --output "$RUNNER_TEMP/release-notes.md"
+            cat "$RUNNER_TEMP/release-notes.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   package:
     name: Package ${{ matrix.target }}
@@ -133,7 +150,7 @@ jobs:
       # Complete history: the release packing scripts read tags.
       - uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          ref: ${{ needs.prepare.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -199,6 +216,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
+    if: ${{ needs.prepare.outputs.tag != '' }}
     needs: [prepare, package]
     runs-on: ubuntu-24.04
     timeout-minutes: 30

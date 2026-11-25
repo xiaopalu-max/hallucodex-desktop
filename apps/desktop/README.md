@@ -252,7 +252,9 @@ When extraction fails, the installer writes a report with the 7-Zip result and i
 
 ### Release workflow
 
-Pushing a `hallucodex-v<version>` tag, or running [the release workflow](../../.github/workflows/hallucodex-desktop-release.yml) manually with an existing tag, publishes one GitHub Release of this repository:
+To build installers without publishing, open **Actions → HalluCodex desktop release → Run workflow**, select the source branch, enter an installer version such as `0.1.11` in `build_version`, and leave `tag` blank. Download the installers from the run’s **Artifacts** section. This mode does not require a changelog entry or create a tag or release.
+
+Pushing a `hallucodex-v<version>` tag, or running [the release workflow](../../.github/workflows/hallucodex-desktop-release.yml) manually with an existing `tag` and a blank `build_version`, publishes one GitHub Release of this repository:
 
 1. Add a `## <version>` section to the root [CHANGELOG.md](../../CHANGELOG.md) and merge it before tagging. The workflow stops before building when the tag is not `hallucodex-v<SemVer>` or the section is missing.
 2. Push the tag, for example `git tag hallucodex-v0.1.0 && git push origin hallucodex-v0.1.0`.
